@@ -7,7 +7,7 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o bin/fnos-acme ./cmd/fnos-acme
 
-FROM gcr.io/distroless/static-debian11
+FROM gcr.io/distroless/static-debian12:nonroot
 
 WORKDIR /app/fnos-acme
 

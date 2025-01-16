@@ -8,11 +8,13 @@ package transport
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"sync"
 	"time"
 
@@ -39,7 +41,15 @@ type webSocketClient struct {
 }
 
 func dial(ctx context.Context, addr string) (*websocket.Conn, error) {
-	conn, _, err := websocket.DefaultDialer.DialContext(ctx, addr, nil)
+	dialer := &websocket.Dialer{
+		Proxy:            http.ProxyFromEnvironment,
+		HandshakeTimeout: 45 * time.Second,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
+
+	conn, _, err := dialer.DialContext(ctx, addr, nil)
 	if err != nil {
 		return nil, err
 	}

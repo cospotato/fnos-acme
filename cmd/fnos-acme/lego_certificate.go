@@ -119,5 +119,7 @@ func saveCertificate(dataDir string, cert *certificate.Resource) error {
 		return err
 	}
 
+	slog.Info("saved certificate", "domain", cert.Domain)
+
 	return nil
 }

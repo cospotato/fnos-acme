@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -28,8 +29,9 @@ const (
 )
 
 const (
-	flgCheckInterval = "check-interval"
-	flgRenewDays     = "renew-days"
+	flgCheckInterval        = "check-interval"
+	flgRenewDays            = "renew-days"
+	flgTermsOfServiceAgreed = "tos-agreed"
 )
 
 const (
@@ -52,6 +54,12 @@ func commandRun() *cli.Command {
 				Value:   3,
 				Usage:   "renew days",
 				Sources: cli.EnvVars("RENEW_DAYS"),
+			},
+			&cli.BoolFlag{
+				Name:    flgTermsOfServiceAgreed,
+				Value:   false,
+				Usage:   "agree the acme term of service",
+				Sources: cli.EnvVars("ACME_TERM_OF_SERVICE_AGREED"),
 			},
 		},
 	}
@@ -87,18 +95,22 @@ func flagCheck(c *cli.Command) error {
 
 func run(ctx context.Context, c *cli.Command) error {
 	if err := flagCheck(c); err != nil {
+		slog.Error("flag check failed", "err", err)
 		return err
 	}
 
 	// create data dir
 	if _, err := os.Stat(c.String(flgDataDir)); errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(c.String(flgDataDir), 0755); err != nil {
+			slog.Error("create data dir failed", "err", err)
 			return err
 		}
 	}
 
+	// login fnos
 	client, err := trim.NewMainClient(c.String(flgFnosAddress))
 	if err != nil {
+		slog.Error("create fnos client failed", "err", err)
 		return err
 	}
 
@@ -108,11 +120,41 @@ func run(ctx context.Context, c *cli.Command) error {
 		User:     c.String(flgFnosUsername),
 		Password: c.String(flgFnosPassword),
 	}); err != nil {
+		slog.Error("login fnos failed", "err", err)
 		return err
 	}
 
+	slog.Info("login fnos success")
+
+	// login acme
+	account, err := setupAccount(c.String(flgDataDir), c.String(flgEmail))
+	if err != nil {
+		return err
+	}
+
+	legoClient, err := newClient(ctx, account, defaultKeyType, c.String(flgDnsProvider), 30*time.Second, c.StringSlice(flgDnsResolvers))
+	if err != nil {
+		return err
+	}
+
+	if account.Registration == nil {
+		// register account
+		reg, err := legoClient.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: c.Bool(flgTermsOfServiceAgreed)})
+		if err != nil {
+			return err
+		}
+
+		account.Registration = reg
+		if err := saveAccount(c.String(flgDataDir), account); err != nil {
+			return err
+		}
+
+		slog.Info("registered acme account", "email", c.String(flgEmail))
+	}
+
 	// do checkAndUpdate immediately at starting up
-	if err := checkAndUpdate(ctx, c, client); err != nil {
+	if err := checkAndUpdate(ctx, c, client, legoClient); err != nil {
+		slog.Error("check certificate and update failed", "err", err)
 		return err
 	}
 
@@ -121,7 +163,8 @@ func run(ctx context.Context, c *cli.Command) error {
 	for {
 		select {
 		case <-ticker.C:
-			if err := checkAndUpdate(ctx, c, client); err != nil {
+			if err := checkAndUpdate(ctx, c, client, legoClient); err != nil {
+				slog.Error("check certificate and update failed", "err", err)
 				return err
 			}
 		case <-ctx.Done():
@@ -130,7 +173,7 @@ func run(ctx context.Context, c *cli.Command) error {
 	}
 }
 
-func ensureCert(trimClient *trim.Client, cert cert, edit bool) error {
+func ensureCert(ctx context.Context, trimClient *trim.Client, cert cert, edit bool) error {
 	certList, err := trimClient.Main().RemoteAccessService().GetCertList(context.TODO())
 	if err != nil {
 		return err
@@ -146,7 +189,9 @@ func ensureCert(trimClient *trim.Client, cert cert, edit bool) error {
 	}
 
 	if remoteCert == nil {
-		resp, err := trimClient.Main().RemoteAccessService().UploadCert(context.TODO(), &remoteaccess.UploadCertRequest{
+		slog.Info("certificate in fnos not exists, upload it")
+
+		resp, err := trimClient.Main().RemoteAccessService().UploadCert(ctx, &remoteaccess.UploadCertRequest{
 			Data: remoteaccess.CertRequestData{
 				Desc:              cert.name,
 				PrivateKeyBase64:  base64.StdEncoding.EncodeToString(cert.rawKey),
@@ -163,7 +208,9 @@ func ensureCert(trimClient *trim.Client, cert cert, edit bool) error {
 	}
 
 	if edit {
-		resp, err := trimClient.Main().RemoteAccessService().ReplaceCert(context.TODO(), &remoteaccess.ReplaceCertRequest{
+		slog.Info("certificate in fnos out of date, replace it")
+
+		resp, err := trimClient.Main().RemoteAccessService().ReplaceCert(ctx, &remoteaccess.ReplaceCertRequest{
 			Data: remoteaccess.CertRequestData{
 				ID:                remoteCert.ID,
 				Desc:              cert.name,
@@ -183,7 +230,7 @@ func ensureCert(trimClient *trim.Client, cert cert, edit bool) error {
 	return nil
 }
 
-func obtainAndUpload(dataDir string, domains []string, legoClient *lego.Client, trimClient *trim.Client) error {
+func obtainAndUpload(ctx context.Context, dataDir string, domains []string, legoClient *lego.Client, trimClient *trim.Client) error {
 	request := certificate.ObtainRequest{
 		Domains: domains,
 		Bundle:  true,
@@ -198,37 +245,15 @@ func obtainAndUpload(dataDir string, domains []string, legoClient *lego.Client, 
 		return err
 	}
 
-	return ensureCert(trimClient, cert{
+	return ensureCert(ctx, trimClient, cert{
 		name:    certResource.Domain,
 		rawCert: certResource.Certificate,
 		rawKey:  certResource.PrivateKey,
 	}, true)
 }
 
-func checkAndUpdate(ctx context.Context, c *cli.Command, trimClient *trim.Client) error {
-	account, err := setupAccount(c.String(flgDataDir), c.String(flgEmail))
-	if err != nil {
-		return err
-	}
-
-	legoClient, err := newClient(ctx, account, defaultKeyType, c.String(flgDnsProvider), 30*time.Second, c.StringSlice(flgDnsResolvers))
-	if err != nil {
-		return err
-	}
-
-	if account.Registration == nil {
-		// register account
-		// !!! ACCEPTED TOS BY DEFAULT
-		reg, err := legoClient.Registration.Register(registration.RegisterOptions{TermsOfServiceAgreed: true})
-		if err != nil {
-			return err
-		}
-
-		account.Registration = reg
-		if err := saveAccount(c.String(flgDataDir), account); err != nil {
-			return err
-		}
-	}
+func checkAndUpdate(ctx context.Context, c *cli.Command, trimClient *trim.Client, legoClient *lego.Client) error {
+	slog.Info("start check certificate")
 
 	certs, err := listCertificates(c.String(flgDataDir))
 	if err != nil {
@@ -236,7 +261,8 @@ func checkAndUpdate(ctx context.Context, c *cli.Command, trimClient *trim.Client
 	}
 
 	if len(certs) == 0 {
-		return obtainAndUpload(c.String(flgDataDir), c.StringSlice(flgDomains), legoClient, trimClient)
+		slog.Info("no certificate found, obtain one")
+		return obtainAndUpload(ctx, c.String(flgDataDir), c.StringSlice(flgDomains), legoClient, trimClient)
 	}
 
 	for _, cert := range certs {
@@ -245,11 +271,11 @@ func checkAndUpdate(ctx context.Context, c *cli.Command, trimClient *trim.Client
 				return false
 			}
 
-			if domainsEqual(c.StringSlice(flgDomains), certcrypto.ExtractDomains(cert.Certificate)) {
+			if !domainsEqual(c.StringSlice(flgDomains), certcrypto.ExtractDomains(cert.Certificate)) {
 				return false
 			}
 
-			if cert.NotAfter.After(time.Now().AddDate(0, 0, -1*int(c.Int(flgRenewDays)))) {
+			if time.Now().AddDate(0, 0, -1*int(c.Int(flgRenewDays))).After(cert.NotAfter) {
 				return false
 			}
 
@@ -257,15 +283,18 @@ func checkAndUpdate(ctx context.Context, c *cli.Command, trimClient *trim.Client
 		}
 
 		if !ok() {
-			if err := obtainAndUpload(c.String(flgDataDir), c.StringSlice(flgDomains), legoClient, trimClient); err != nil {
+			slog.Info("certificate found, but out of date, obtain one and upload", "domain", cert.name)
+			if err := obtainAndUpload(ctx, c.String(flgDataDir), c.StringSlice(flgDomains), legoClient, trimClient); err != nil {
 				return err
 			}
 		}
 
-		if err := ensureCert(trimClient, cert, false); err != nil {
+		if err := ensureCert(ctx, trimClient, cert, false); err != nil {
 			return err
 		}
 	}
+
+	slog.Info("certificate is ready, wait next sync", "nextSyncTime", time.Now().Add(c.Duration(flgCheckInterval)))
 
 	return nil
 }
