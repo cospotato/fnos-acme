@@ -154,8 +154,7 @@ func run(ctx context.Context, c *cli.Command) error {
 
 	// do checkAndUpdate immediately at starting up
 	if err := checkAndUpdate(ctx, c, client, legoClient); err != nil {
-		slog.Error("check certificate and update failed", "err", err)
-		return err
+		slog.Error("check certificate and update failed, wait next sync", "err", err, "nextSyncTime", time.Now().Add(c.Duration(flgCheckInterval)))
 	}
 
 	ticker := time.NewTicker(c.Duration(flgCheckInterval))
@@ -165,8 +164,9 @@ func run(ctx context.Context, c *cli.Command) error {
 		case <-ticker.C:
 			if err := checkAndUpdate(ctx, c, client, legoClient); err != nil {
 				slog.Error("check certificate and update failed", "err", err)
-				return err
 			}
+
+			slog.Info("wait next sync", "nextSyncTime", time.Now().Add(c.Duration(flgCheckInterval)))
 		case <-ctx.Done():
 			return nil
 		}
@@ -294,7 +294,7 @@ func checkAndUpdate(ctx context.Context, c *cli.Command, trimClient *trim.Client
 		}
 	}
 
-	slog.Info("certificate is ready, wait next sync", "nextSyncTime", time.Now().Add(c.Duration(flgCheckInterval)))
+	slog.Info("certificate is ready")
 
 	return nil
 }

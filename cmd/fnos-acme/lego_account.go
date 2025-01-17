@@ -93,29 +93,41 @@ func setupAccount(dataDir, email string) (*account, error) {
 	return acc, nil
 }
 
+func loadAccount(dataDir string) (map[string]*account, error) {
+	f, err := os.Open(filepath.Join(dataDir, accountJson))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return make(map[string]*account), nil
+		}
+
+		return nil, err
+	}
+
+	defer f.Close()
+
+	accounts := make(map[string]*account)
+
+	if err := json.NewDecoder(f).Decode(&accounts); err != nil {
+		return nil, err
+	}
+
+	return accounts, nil
+}
+
 func saveAccount(dataDir string, acc *account) error {
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return err
 	}
 
-	f, err := os.OpenFile(filepath.Join(dataDir, accountJson), os.O_CREATE|os.O_RDWR, 0600)
+	accounts, err := loadAccount(dataDir)
 	if err != nil {
-		return err
-	}
-
-	accounts := make(map[string]*account)
-
-	if err := json.NewDecoder(f).Decode(&accounts); err != nil {
 		return err
 	}
 
 	accounts[acc.Email] = acc
 
-	if _, err := f.Seek(0, 0); err != nil {
-		return err
-	}
-
-	if err := f.Truncate(0); err != nil {
+	f, err := os.OpenFile(filepath.Join(dataDir, accountJson), os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0600)
+	if err != nil {
 		return err
 	}
 
