@@ -99,6 +99,13 @@ func run(ctx context.Context, c *cli.Command) error {
 		return err
 	}
 
+	if c.Bool(flgDebug) {
+		logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+			Level: slog.LevelDebug,
+		}))
+		slog.SetDefault(logger)
+	}
+
 	// create data dir
 	if _, err := os.Stat(c.String(flgDataDir)); errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(c.String(flgDataDir), 0755); err != nil {
@@ -154,8 +161,10 @@ func run(ctx context.Context, c *cli.Command) error {
 
 	// do checkAndUpdate immediately at starting up
 	if err := checkAndUpdate(ctx, c, client, legoClient); err != nil {
-		slog.Error("check certificate and update failed, wait next sync", "err", err, "nextSyncTime", time.Now().Add(c.Duration(flgCheckInterval)))
+		slog.Error("check certificate and update failed", "err", err)
 	}
+
+	slog.Info("wait next sync", "nextSyncTime", time.Now().Add(c.Duration(flgCheckInterval)))
 
 	ticker := time.NewTicker(c.Duration(flgCheckInterval))
 

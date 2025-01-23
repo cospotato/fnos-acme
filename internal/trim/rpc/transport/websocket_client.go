@@ -6,7 +6,6 @@
 package transport
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -175,6 +174,8 @@ func (t *webSocketClient) write(data []byte, opts *WriteOptions) (err error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	t.logger.Debug("write", "data", string(data))
+
 	return t.conn.WriteMessage(websocket.TextMessage, data)
 }
 
@@ -183,6 +184,8 @@ func (t *webSocketClient) handlePing() {
 }
 
 func (t *webSocketClient) handleResponse(data []byte) error {
+	t.logger.Debug("handle response", "data", string(data))
+
 	var hdr ResponseHeader
 	if err := json.Unmarshal(data, &hdr); err != nil {
 		return err
@@ -207,6 +210,18 @@ func (t *webSocketClient) handleResponse(data []byte) error {
 	close(req.done)
 
 	return nil
+}
+
+func (t *webSocketClient) handleTaskInfo(taskInfo string) {
+	if t.logger != nil {
+		t.logger.Info("received task info", "taskInfo", taskInfo)
+	}
+}
+
+func (t *webSocketClient) handleNotify(notify Notify) {
+	if t.topts.NotifyHandler != nil {
+		t.topts.NotifyHandler(notify)
+	}
 }
 
 func (t *webSocketClient) reader() {
@@ -235,12 +250,28 @@ func (t *webSocketClient) reader() {
 			continue
 		}
 
-		if bytes.Equal(data, []byte(`{"res":"pong"}`)) {
-			t.handlePing()
+		var msg Message
+		if err := json.Unmarshal(data, &msg); err != nil {
+			t.logger.Error("unmarshal message failed", "err", err)
 			continue
 		}
 
-		t.handleResponse(data)
+		switch {
+		case msg.Res == "pong":
+			t.handlePing()
+		case msg.TaskInfo != "":
+			t.handleTaskInfo(msg.TaskInfo)
+		case msg.Notify != "":
+			t.handleNotify(msg.Notify)
+		case msg.DeviceNotify != "":
+			t.handleNotify(msg.DeviceNotify)
+		case msg.SysNotify != "":
+			t.handleNotify(msg.SysNotify)
+		default:
+			if err := t.handleResponse(data); err != nil {
+				t.logger.Error("handle response failed", "err", err)
+			}
+		}
 	}
 }
 

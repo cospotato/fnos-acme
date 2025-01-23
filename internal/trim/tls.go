@@ -78,7 +78,7 @@ type tlsCreds struct {
 }
 
 // TLS_RSA_WITH_AES_256_CBC_SHA256
-func NewTLS() credentials.TransportCredentials {
+func NewTLS() *tlsCreds {
 	tc := &tlsCreds{
 		aesKey: []byte(randomString(32)),
 		aesIv:  make([]byte, aes.BlockSize),
@@ -88,6 +88,8 @@ func NewTLS() credentials.TransportCredentials {
 
 	return tc
 }
+
+var _ credentials.TransportCredentials = (*tlsCreds)(nil)
 
 func (tc *tlsCreds) encryptRSA(data []byte) (string, error) {
 	ciphertext, err := rsa.EncryptPKCS1v15(rand.Reader, tc.publicKey, data)

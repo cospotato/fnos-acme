@@ -14,14 +14,14 @@ import (
 	"github.com/cospotato/fnos-acme/internal/trim/api/user"
 	"github.com/cospotato/fnos-acme/internal/trim/api/util"
 	"github.com/cospotato/fnos-acme/internal/trim/rpc"
-	"github.com/cospotato/fnos-acme/internal/trim/rpc/credentials"
 )
 
 type Client struct {
 	conn  *rpc.ClientConn
-	creds credentials.TransportCredentials
+	creds *tlsCreds
 
-	si string
+	si    string
+	token string
 }
 
 func New(address, typ string) (*Client, error) {
@@ -43,7 +43,7 @@ func New(address, typ string) (*Client, error) {
 
 	creds := NewTLS()
 
-	conn, err := rpc.DialContext(context.TODO(), u.String(), rpc.WithTransportCredentials(creds))
+	conn, err := rpc.DialContext(context.Background(), u.String(), rpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (c *Client) preflight() error {
 
 	c.si = resp.SI
 
-	if err := c.creds.(*tlsCreds).SetPublicKey(resp.Pub); err != nil {
+	if err := c.creds.SetPublicKey(resp.Pub); err != nil {
 		return err
 	}
 
@@ -93,11 +93,12 @@ func (c *Client) Login(ctx context.Context, req *user.LoginRequest) (*user.Login
 		return nil, err
 	}
 
-	if err := c.creds.(*tlsCreds).SetSecret(resp.Secret); err != nil {
+	if err := c.creds.SetSecret(resp.Secret); err != nil {
 		return resp, err
 	}
 
 	c.conn.SetBackID(resp.BackId)
+	c.token = resp.Token
 
 	return resp, nil
 }

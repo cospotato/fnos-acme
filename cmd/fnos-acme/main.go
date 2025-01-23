@@ -22,6 +22,7 @@ const (
 	flgEmail        = "email"
 	flgDnsProvider  = "dns-provider"
 	flgDnsResolvers = "dns-resolvers"
+	flgDebug        = "debug"
 )
 
 func main() {
@@ -78,6 +79,12 @@ func main() {
 				Value:   []string{},
 				Usage:   "dns resolvers",
 				Sources: cli.EnvVars("DNS_RESOLVERS"),
+			},
+			&cli.BoolFlag{
+				Name:    flgDebug,
+				Value:   false,
+				Usage:   "debug mode",
+				Sources: cli.EnvVars("DEBUG"),
 			},
 		},
 	}

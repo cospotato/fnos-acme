@@ -19,6 +19,14 @@ type ClientTransport interface {
 	SetBackID(backId string)
 }
 
+type Message struct {
+	Res          string `json:"res,omitempty"`
+	TaskInfo     string `json:"taskInfo,omitempty"`
+	Notify       Notify `json:"notify,omitempty"`
+	DeviceNotify Notify `json:"deviceNotify,omitempty"`
+	SysNotify    Notify `json:"sysNotify,omitempty"`
+}
+
 type Request struct {
 	id     string
 	ctx    context.Context
@@ -33,6 +41,7 @@ type ResponseHeader struct {
 
 type Options struct {
 	TransportCredentials credentials.TransportCredentials
+	NotifyHandler        func(notify Notify)
 }
 
 type WriteOptions struct {
