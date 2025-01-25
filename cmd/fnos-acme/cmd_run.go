@@ -16,7 +16,6 @@ import (
 
 	"github.com/cospotato/fnos-acme/internal/trim"
 	"github.com/cospotato/fnos-acme/internal/trim/api/remoteaccess"
-	"github.com/cospotato/fnos-acme/internal/trim/api/user"
 	"github.com/go-acme/lego/v4/certcrypto"
 	"github.com/go-acme/lego/v4/certificate"
 	"github.com/go-acme/lego/v4/lego"
@@ -115,21 +114,16 @@ func run(ctx context.Context, c *cli.Command) error {
 	}
 
 	// login fnos
-	client, err := trim.NewMainClient(c.String(flgFnosAddress))
+	client, err := trim.NewMainClient(c.String(flgFnosAddress), trim.WithLogin(
+		c.String(flgFnosUsername),
+		c.String(flgFnosPassword),
+	))
 	if err != nil {
 		slog.Error("create fnos client failed", "err", err)
 		return err
 	}
 
 	defer client.Close()
-
-	if _, err := client.Login(context.Background(), &user.LoginRequest{
-		User:     c.String(flgFnosUsername),
-		Password: c.String(flgFnosPassword),
-	}); err != nil {
-		slog.Error("login fnos failed", "err", err)
-		return err
-	}
 
 	slog.Info("login fnos success")
 

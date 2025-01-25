@@ -35,3 +35,9 @@ func WithTransportCredentials(creds credentials.TransportCredentials) DialOption
 		do.topts.TransportCredentials = creds
 	})
 }
+
+func WithNotifyHandler(h func(notify transport.Notify)) DialOption {
+	return newFuncDialOption(func(do *dialOptions) {
+		do.topts.NotifyHandler = h
+	})
+}

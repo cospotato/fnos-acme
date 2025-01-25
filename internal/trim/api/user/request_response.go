@@ -5,6 +5,8 @@
 
 package user
 
+import "github.com/cospotato/fnos-acme/internal/trim/rpc/types"
+
 type LoginRequest struct {
 	User       string `json:"user,omitempty"`
 	Password   string `json:"password,omitempty"`
@@ -32,3 +34,6 @@ type AuthTokenResponse struct {
 	Admin  bool   `json:"admin,omitempty"`
 	BackId string `json:"backId,omitempty"`
 }
+
+type ActiveRequest = types.Empty
+type ActiveResponse = types.Empty

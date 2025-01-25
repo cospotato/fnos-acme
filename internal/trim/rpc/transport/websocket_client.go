@@ -159,6 +159,7 @@ func (t *webSocketClient) SetBackID(backId string) {
 	defer t.mu.Unlock()
 
 	t.backID = backId
+	t.nextID = 1
 }
 
 func (t *webSocketClient) write(data []byte, opts *WriteOptions) (err error) {

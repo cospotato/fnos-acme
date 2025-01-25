@@ -9,6 +9,8 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} go build -o bin/fnos-acme ./cm
 
 FROM gcr.io/distroless/static-debian12:latest
 
+ENV TZ=Asia/Shanghai
+
 WORKDIR /app/fnos-acme
 
 COPY --from=builder /go/src/github.com/cospotato/fnos-acme/bin/fnos-acme /usr/local/bin/fnos-acme

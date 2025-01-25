@@ -14,11 +14,13 @@ import (
 const (
 	UserService_Login_FullMethodName     = "user.login"
 	UserService_AuthToken_FullMethodName = "user.authToken"
+	UserService_Active_FullMethodName    = "user.active"
 )
 
 type UserService interface {
 	Login(ctx context.Context, in *LoginRequest, opts ...rpc.CallOption) (*LoginResponse, error)
 	AuthToken(ctx context.Context, in *AuthTokenRequest, opts ...rpc.CallOption) (*AuthTokenResponse, error)
+	Active(ctx context.Context, in *ActiveRequest, opts ...rpc.CallOption) (*ActiveResponse, error)
 }
 
 type userServiceClient struct {
@@ -41,6 +43,15 @@ func (c *userServiceClient) Login(ctx context.Context, in *LoginRequest, opts ..
 func (c *userServiceClient) AuthToken(ctx context.Context, in *AuthTokenRequest, opts ...rpc.CallOption) (*AuthTokenResponse, error) {
 	out := new(AuthTokenResponse)
 	err := c.cc.Invoke(ctx, UserService_AuthToken_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *userServiceClient) Active(ctx context.Context, in *ActiveRequest, opts ...rpc.CallOption) (*ActiveResponse, error) {
+	out := new(ActiveResponse)
+	err := c.cc.Invoke(ctx, UserService_Active_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
