@@ -7,9 +7,8 @@ package transport
 
 import (
 	"bytes"
+	"fmt"
 	"io"
-
-	"github.com/tidwall/sjson"
 )
 
 type ClientRequest struct {
@@ -22,14 +21,13 @@ type ClientRequest struct {
 }
 
 func (s *ClientRequest) Write(data []byte, opts *WriteOptions) (err error) {
-	data, err = sjson.SetBytes(data, "reqid", s.id)
-	if err != nil {
-		return err
-	}
+	hdr := []byte(fmt.Sprintf(`{"reqid":"%s","req":"%s"`, s.id, s.method))
 
-	data, err = sjson.SetBytes(data, "req", s.method)
-	if err != nil {
-		return err
+	// just `{}`
+	if len(data) == 2 {
+		data = append(hdr, '}')
+	} else {
+		data = bytes.Join([][]byte{hdr, data[1:]}, []byte(","))
 	}
 
 	return s.ct.write(data, opts)

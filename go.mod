@@ -5,7 +5,6 @@ go 1.23.4
 require (
 	github.com/go-acme/lego/v4 v4.21.0
 	github.com/gorilla/websocket v1.5.3
-	github.com/tidwall/sjson v1.2.5
 	github.com/urfave/cli/v3 v3.0.0-beta1
 )
 
@@ -159,9 +158,6 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.1065 // indirect
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/dnspod v1.0.1065 // indirect
-	github.com/tidwall/gjson v1.18.0 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	github.com/transip/gotransip/v6 v6.26.0 // indirect
 	github.com/ultradns/ultradns-go-sdk v1.8.0-20241010134910-243eeec // indirect

@@ -6,11 +6,12 @@
 package rpc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/cospotato/fnos-acme/internal/trim/rpc/transport"
-	"github.com/tidwall/sjson"
 )
 
 type ClientRequest interface {
@@ -70,9 +71,12 @@ func (cs *clientRequest) SendMsg(m any) error {
 	}
 
 	if cs.callInfo.si != "" {
-		data, err = sjson.SetBytes(data, "si", cs.callInfo.si)
-		if err != nil {
-			return err
+		si := []byte(fmt.Sprintf(`{"si":"%s"`, cs.callInfo.si))
+
+		if len(data) == 2 {
+			data = append(si, '}')
+		} else {
+			data = bytes.Join([][]byte{si, data[1:]}, []byte(","))
 		}
 	}
 
