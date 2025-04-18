@@ -278,7 +278,7 @@ func checkAndUpdate(ctx context.Context, c *cli.Command, trimClient *trim.Client
 				return false
 			}
 
-			if time.Now().AddDate(0, 0, -1*int(c.Int(flgRenewDays))).After(cert.NotAfter) {
+			if time.Now().AddDate(0, 0, int(c.Int(flgRenewDays))).After(cert.NotAfter) {
 				return false
 			}
 
